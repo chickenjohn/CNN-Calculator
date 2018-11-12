@@ -50,24 +50,34 @@ class CNNCalculator(object):
             stride = (stride, stride)
         if type(padding) == int:
             padding = (padding, padding)
-        assert type(size) == tuple and len(size) == 2, 'illegal size parameters'
-        assert type(stride) == tuple and len(stride) == 2, 'illegal stride parameters'
-        assert type(padding) == tuple and len(padding) == 2, 'illegal padding parameters'
         size_h, size_w = size
         stride_h, stride_w = stride
         padding_h, padding_w = padding
 
         in_c = tensor.c
-        out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
-        out_w = (tensor.w - size_w + 2 * padding_w) // stride_w + 1
+        if (tensor.h - size_h + 2 * padding_h) == 0 and stride_h == 0:
+            out_h = 1
+        else:
+            out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
+        
+        if (tensor.w - size_w + 2 * padding_w) == 0 and stride_w == 0:
+            out_w = 1
+        else:
+            out_w = (tensor.w - size_w + 2 * padding_w) // stride_w + 1
+
         assert in_c % groups == 0 and out_c % groups == 0, 'in_c and out_c must be divisible by groups'
 
+        if bias:
+            currFlops = out_c * out_h * out_w * in_c // groups * size_h * size_w * 2
+        else:
+            currFlops = out_c * out_h * out_w * in_c // groups * (size_h * size_w * 2 - 1)
+
+        self.flops += currFlops
         self.params += out_c * in_c // groups * size_h * size_w
-        self.flops += out_c * out_h * out_w * in_c // groups * size_h * size_w
         if bias:
             self.params += out_c
-            self.flops += out_c * out_w * out_h
 
+        print("conv flops: {}".format(currFlops))
         return Tensor(out_c, out_h, out_w)
 
 
@@ -111,18 +121,25 @@ class CNNCalculator(object):
             stride = (stride, stride)
         if type(padding) == int:
             padding = (padding, padding)
-        assert type(size) == tuple and len(size) == 2, 'illegal size parameters'
-        assert type(stride) == tuple and len(stride) == 2, 'illegal stride parameters'
-        assert type(padding) == tuple and len(padding) == 2, 'illegal padding parameters'
         size_h, size_w = size
         stride_h, stride_w = stride
         padding_h, padding_w = padding
 
         out_c = tensor.c
-        out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
-        out_w = (tensor.w - size_w + 2 * padding_w) // stride_w + 1
+        if (tensor.h - size_h + 2 * padding_h) == 0 and stride_h == 0:
+            out_h = 1
+        else:
+            out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
+        
+        if (tensor.w - size_w + 2 * padding_w) == 0 and stride_w == 0:
+            out_w = 1
+        else:
+            out_w = (tensor.w - size_w + 2 * padding_w) // stride_w + 1
+            
         if not self.only_mac:
-            self.flops += out_c * out_h * out_w * size_h * size_w
+            self.flops += out_c * out_h * out_w * (size_h * size_w - 1)
+
+        print("pool2d flops: {}".format(out_c * out_h * out_w * (size_h * size_w - 1)))
         return Tensor(out_c, out_h, out_w)
 
 
@@ -143,14 +160,20 @@ class CNNCalculator(object):
         size = (tensor.h, tensor.w)
         return self.MaxPool2d(tensor, size)
 
+    def Flatten(self, tensor, name='flatten'):
+        out_c = tensor.c * tensor.h * tensor.w
+        out_w = 1
+        out_h = 1
+        return Tensor(out_c, out_h, out_w)
 
     def Linear(self, tensor, out_c, name='fully_connected'):
         in_c = tensor.c
         out_h = tensor.h
         out_w = tensor.w
         assert out_h == 1 and out_w == 1, 'out_h or out_w is greater than 1 in Linear layer.'
-        self.params += in_c * out_c
-        self.flops += in_c * out_c
+        self.params += (in_c+1) * out_c
+        self.flops += in_c * 2 * out_c
+        print("linear flops: {}".format(in_c * 2 * out_c))
         return Tensor(out_c, out_h, out_w)
 
 
