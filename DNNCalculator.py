@@ -1,16 +1,16 @@
 '''
 A simplified 3-D Tensor (channels, height, weight) for convolutional neural networks.
 '''
+
+
 class Tensor(object):
     def __init__(self, c, h, w):
         self.c = c
         self.h = h
         self.w = w
 
-
     def equals(self, other):
         return self.c == other.c and self.h == other.h and self.w == other.w
-
 
     def broadcastable(self, other):
         return (self.c % other.c == 0 or other.c % self.c == 0) and \
@@ -32,16 +32,16 @@ considered, please modify the code.
 
 Refer to `MobileNet.py` for details.
 '''
+
+
 class DNNCalculator(object):
     def __init__(self, only_mac=False):
         self.params = 0
         self.flops = 0
         self.only_mac = only_mac
 
-
     def calculate(self, *inputs):
         raise NotImplementedError
-
 
     def Conv2d(self, tensor, out_c, size, stride=1, padding=0, groups=1, bias=True, name='conv'):
         if type(size) == int:
@@ -59,7 +59,7 @@ class DNNCalculator(object):
             out_h = 1
         else:
             out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
-        
+
         if (tensor.w - size_w + 2 * padding_w) == 0 and stride_w == 0:
             out_w = 1
         else:
@@ -70,7 +70,8 @@ class DNNCalculator(object):
         if bias:
             currFlops = out_c * out_h * out_w * in_c // groups * size_h * size_w * 2
         else:
-            currFlops = out_c * out_h * out_w * in_c // groups * (size_h * size_w * 2 - 1)
+            currFlops = out_c * out_h * out_w * \
+                in_c // groups * (size_h * size_w * 2 - 1)
 
         self.flops += currFlops
         self.params += out_c * in_c // groups * size_h * size_w
@@ -80,7 +81,6 @@ class DNNCalculator(object):
         print("conv flops: {}".format(currFlops))
         return Tensor(out_c, out_h, out_w)
 
-
     def BatchNorm2d(self, tensor, name='batch_norm'):
         return tensor
         # Batch normalization can be combined with the preceding convolution, so there are no FLOPs.
@@ -89,10 +89,9 @@ class DNNCalculator(object):
         # out_w = tensor.w
 
         # if self.only_mac:
-            # self.params += 4 * out_c
-            # self.flops += out_c * out_h * out_w
+        # self.params += 4 * out_c
+        # self.flops += out_c * out_h * out_w
         # return Tensor(out_c, out_h, out_w)
-
 
     def ReLU(self, tensor, name='relu'):
         out_c = tensor.c
@@ -103,8 +102,7 @@ class DNNCalculator(object):
             self.flops += out_c * out_h * out_w
         return Tensor(out_c, out_h, out_w)
 
-
-    def Sigmoid(self, tensor, name='relu'):
+    def Sigmoid(self, tensor, name='sigmoid'):
         out_c = tensor.c
         out_h = tensor.h
         out_w = tensor.w
@@ -113,6 +111,8 @@ class DNNCalculator(object):
             self.flops += out_c * out_h * out_w
         return Tensor(out_c, out_h, out_w)
 
+    def Tanh(self, tensor, name='tanh'):
+        return self.Sigmoid(tensor=tensor)
 
     def Pool2d(self, tensor, size, stride=1, padding=0, name='pool'):
         if type(size) == int:
@@ -130,31 +130,48 @@ class DNNCalculator(object):
             out_h = 1
         else:
             out_h = (tensor.h - size_h + 2 * padding_h) // stride_h + 1
-        
+
         if (tensor.w - size_w + 2 * padding_w) == 0 and stride_w == 0:
             out_w = 1
         else:
             out_w = (tensor.w - size_w + 2 * padding_w) // stride_w + 1
-            
+
         if not self.only_mac:
             self.flops += out_c * out_h * out_w * (size_h * size_w - 1)
 
-        print("pool2d flops: {}".format(out_c * out_h * out_w * (size_h * size_w - 1)))
+        print("pool2d flops: {}".format(
+            out_c * out_h * out_w * (size_h * size_w - 1)))
         return Tensor(out_c, out_h, out_w)
 
+    '''
+    input tensor must have channel number as 1
+    input tensor's width refers to the length of one LSTM input
+    input tensor's height refers to number of lstm cells(lstm iterations)
+    '''
+
+    def LSTM(self, tensor, output_size, is_taking_inter_res=True, name='LSTM'):
+        assert tensor.c == 1, 'input tensor\'s channel must be 1.'
+        fc_layer_channel = tensor.w + output_size
+        self.params += 4*(fc_layer_channel+1)*output_size
+        # define LSTM nonlinear function resource usage here
+        # currently it's defined according to piecewise nonlinear model
+        flops_per_nonlinear = 32+2
+        self.flops += tensor.h*(4*fc_layer_channel*2 *
+                                output_size+flops_per_nonlinear*5*output_size)
+        if is_taking_inter_res:
+            return Tensor(1, tensor.h, output_size)
+        else:
+            return Tensor(1, 1, output_size)
 
     def AvgPool2d(self, tensor, size, stride=1, padding=0, name='avg_pool'):
         return self.Pool2d(tensor, size, stride=stride, padding=padding, name=name)
 
-
     def MaxPool2d(self, tensor, size, stride=1, padding=0, name='max_pool'):
         return self.Pool2d(tensor, size, stride=stride, padding=padding, name=name)
-
 
     def GlobalAvgPool2d(self, tensor, name='global_avg_pool'):
         size = (tensor.h, tensor.w)
         return self.AvgPool2d(tensor, size)
-
 
     def GlobalMaxPool2d(self, tensor, name='global_max_pool'):
         size = (tensor.h, tensor.w)
@@ -176,7 +193,6 @@ class DNNCalculator(object):
         print("linear flops: {}".format(in_c * 2 * out_c))
         return Tensor(out_c, out_h, out_w)
 
-
     def Concat(self, tensors, name='concat'):
         out_c = 0
         out_h = tensors[0].h
@@ -186,9 +202,9 @@ class DNNCalculator(object):
             out_c += tensor.c
         return Tensor(out_c, out_h, out_w)
 
-
     def MultiAdd(self, tensor, other, name='multi_add'):
-        assert tensor.broadcastable(other), 'tensor dimensions mismatch in Add layer.'
+        assert tensor.broadcastable(
+            other), 'tensor dimensions mismatch in Add layer.'
         out_c = tensor.c
         out_h = tensor.h
         out_w = tensor.w
@@ -196,14 +212,11 @@ class DNNCalculator(object):
             self.flops += out_c * out_h * out_w
         return Tensor(out_c, out_h, out_w)
 
-
     def Add(self, tensor, other, name='add'):
         return self.MultiAdd(tensor, other, name=name)
 
-
     def Multi(self, tensor, other, name='multi'):
         return self.MultiAdd(tensor, other, name=name)
-
 
     def SplitBySize(self, tensor, sizes, name='split_by_size'):
         assert sum(sizes) == tensor.c, 'sizes and tensor.c do not match.'

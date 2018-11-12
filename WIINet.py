@@ -10,10 +10,10 @@ class WiiNetCalc(DNNCalculator):
     Source: http://arxiv.org/abs/1703.00737
     '''
     def WiiNet(self, tensor):
-        tensor = self.Conv2d(tensor, out_c=8, size=(3, 1), stride=(1, 1), padding=(0, 0))
-        tensor = self.Conv2d(tensor, out_c=16, size=(3, 2), stride=(1, 0), padding=(0, 0))
+        tensor = self.Conv2d(tensor, out_c=64, size=(3, 1), stride=(1, 1), padding=(0, 0))
+        tensor = self.Conv2d(tensor, out_c=1024, size=(3, 2), stride=(1, 0), padding=(0, 0))
         tensor = self.Flatten(tensor)
-        tensor = self.Linear(tensor, 64)
+        tensor = self.Linear(tensor, 128)
         tensor = self.Linear(tensor, 15)
 
         return tensor
