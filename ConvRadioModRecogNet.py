@@ -1,12 +1,13 @@
 from __future__ import print_function
-from CNNCalculator import Tensor, CNNCalculator
+from DNNCalculator import Tensor, DNNCalculator
 
-class ConvRadioModRecogNetCalc(CNNCalculator):
+class ConvRadioModRecogNetCalc(DNNCalculator):
     def __init__(self, only_mac=True):
         super(ConvRadioModRecogNetCalc, self).__init__(only_mac)
 
     '''
-    MobileNet architecture.
+    Conv Net for Modulation Recog. 
+    Source: http://arxiv.org/abs/1602.04105
     '''
     def ConvRadioModRecogNet(self, tensor):
         tensor = self.Conv2d(tensor, out_c=256, size=(3, 1), stride=(1, 1), padding=(2, 0))

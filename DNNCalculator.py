@@ -32,7 +32,7 @@ considered, please modify the code.
 
 Refer to `MobileNet.py` for details.
 '''
-class CNNCalculator(object):
+class DNNCalculator(object):
     def __init__(self, only_mac=False):
         self.params = 0
         self.flops = 0
